@@ -3,8 +3,18 @@
 #include<vector>
 #include<algorithm>
 #include<map>
+#include <opencv2/core/core.hpp>
+#include <opencv2/features2d/features2d.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/calib3d/calib3d.hpp>
+#include <Eigen/Core>
+#include <Eigen/Geometry>
 
 using namespace std;
+using namespace cv;
+
+
+
 
 // 四个固定点之间共有六个距离，将其放入一个哈希表中
 //map<int, double> distance{ {1, 30.02}, {2, 59.53}, {3, 115}, {4, 30.02}, {5, 59.53}, {6, 88.02} };
@@ -14,7 +24,8 @@ using namespace std;
 // 原理：从NDI读取的实时坐标，根据四个点之间的固定距离，确定四个点的关系
 //       然后建立坐标系，将从NDI设备得到四个点坐标转化为Tools坐标系坐标(因为四个球位置是固定的，只需处理一次即可)
 void CorrespondenceAndBuild(const vector<vector<double>>& NDICoordinates, vector<vector<double>>& ToolsCoordinates, vector<int>& correspond_index)
-{
+{ 
+	//********************************************* 第一步找点的对应位置关系 ************************************************
 	// 四个固定点之间共有六个距离，将其放入一个哈希表中
 	map<double, int> distance{ {30.02, 1}, {59.53, 2}, {115, 3}, {30.02, 4}, {59.53, 5}, {88.02, 6} };
 	// 计算NDI坐标各坐标之间的距离
@@ -29,7 +40,8 @@ void CorrespondenceAndBuild(const vector<vector<double>>& NDICoordinates, vector
 			if (i != j)
 			{
 				dist = sqrt(pow((NDICoordinates[i][0] - NDICoordinates[j][0]), 2) + pow((NDICoordinates[i][1] - NDICoordinates[j][1]), 2) + pow((NDICoordinates[i][2] - NDICoordinates[j][2]), 2));  // 计算距离
-				cout << "第" << i << "与第" << j << "之间的距离：" << dist << endl;
+				// 测试
+				cout<< "第" << i << "与第" << j << "之间的距离：" << dist << endl;
 				map<double, int> diff_dist;
 
 				// 将计算的点与点距离与预定义的距离做差，并利用map特性进行大小排序
@@ -47,6 +59,7 @@ void CorrespondenceAndBuild(const vector<vector<double>>& NDICoordinates, vector
 
 		}
 		sort(dist_indexs.begin(), dist_indexs.end());
+		// 测试
 		for (int i = 0; i < dist_indexs.size(); i++)
 			cout << "编号：" << dist_indexs[i] << endl;
 		if (dist_indexs[2] == 6)
@@ -65,16 +78,58 @@ void CorrespondenceAndBuild(const vector<vector<double>>& NDICoordinates, vector
 		}
 	}
 
+	// 测试
 	cout << "第一个位置对应的编号：" << correspond_index[0] << endl;
 	cout << "第二个位置对应的编号：" << correspond_index[1] << endl;
 	cout << "第三个位置对应的编号：" << correspond_index[2] << endl;
 	cout << "第四个位置对应的编号：" << correspond_index[3] << endl;
+
+	map<int, int> correspond_map;
+	for (int i = 0; i < correspond_index.size(); i++)
+	{
+		correspond_map[correspond_index[i]] = i;
+	}
 	
+	// ******************************************** 求解NDI与Tools之间的RT矩阵 ****************************************
+	// 建立Tools坐标系
+	// 以第三个点为原点，第三个点和第一点组成X轴，与 X 轴垂直的轴设为 Y 轴，根据右手准则构建Z轴
+	// 其中第一点和第三个点的左边在Tools坐标系的位置已知，第二个点可以根据几何关系算出左边位置
+	// 然后根据PnP算法算出两个坐标系之间的位姿
+	//vector<float> Three{ 0.0, 0.0, 0.0 };        // 第三个点(原点)
+	//vector<float> One{ 59.53, 0, 0 };            // 第一点在Tools下的坐标(已知)
+	//vector<float> Two{ 29.76, -3.94, 0.0 };      // 第二点(可以根据几何关系算出)
+
+
+	vector<Point3d> pts_3d;
+	vector<Point2d> pts_2d;
+
+	pts_2d.push_back(Point2d(59.53, 0));            
+	pts_2d.push_back(Point2d(29.76, -3.94));
+	pts_2d.push_back(Point2d(0.0, 0.0));
+	pts_2d.push_back(Point2d(-51.54, 29.79));
+
+	// 将前三个对应点放入 pts_3d
+	for (auto iter1 = correspond_map.begin(); iter1 != correspond_map.end(); iter1++)
+	{
+		pts_3d.push_back(Point3d(NDICoordinates[iter1->second][0], NDICoordinates[iter1->second][1], NDICoordinates[iter1->second][2]));
+	}
+
+	Mat K = (Mat_<double>(3, 3) << 1, 0, 0, 0, 1, 0, 0, 0, 1);     // 模拟相机参数
+
+	Mat r, t;
+
+	solvePnP(pts_3d, pts_2d, K, Mat(), r, t, false); // 调用OpenCV 的 PnP 求解，可选择EPNP，DLS等方法
+
+	Mat R;
+	cv::Rodrigues(r, R); // r为旋转向量形式，用Rodrigues公式转换为矩阵
+
+	cout << "R=" << endl << R << endl;
+	cout << "t=" << endl << t << endl;
+
+	// 验证
+	vector<Point3d> test_pts_3d;
+
 }
-
-
-
-
 
 
 
@@ -130,6 +185,7 @@ int main()
 	CorrespondenceAndBuild(data4, ToolsCoordinates4, select_index4);
 	CorrespondenceAndBuild(data5, ToolsCoordinates5, select_index5);
 	CorrespondenceAndBuild(data6, ToolsCoordinates6, select_index6);
+
 
 	cout << "按任意键继续……";
 	cin.clear();
