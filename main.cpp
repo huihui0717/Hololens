@@ -90,6 +90,47 @@ void CorrespondenceAndBuild(const vector<vector<double>>& NDICoordinates, vector
 		correspond_map[correspond_index[i]] = i;
 	}
 	
+	// 按顺序依次将NDI坐标值放入数组中
+	vector<vector<double>> NDI_Sorted_Coordinates;
+	for (auto iter02 = correspond_map.begin(); iter02 != correspond_map.end(); iter02++)
+	{
+		NDI_Sorted_Coordinates.push_back(NDICoordinates[iter02->second]);
+	}
+
+	// 建立Tools坐标系
+	// 先找共面(当作XY平面)的两条直线
+	vector<double> XY_ax_01{NDI_Sorted_Coordinates[2][0] - NDI_Sorted_Coordinates[0][0], NDI_Sorted_Coordinates[2][1] - NDI_Sorted_Coordinates[0][1], NDI_Sorted_Coordinates[2][2] - NDI_Sorted_Coordinates[0][2] };           // 第三个点与第一个点构成的向量
+	vector<double> XY_ax_02{ NDI_Sorted_Coordinates[2][0] - NDI_Sorted_Coordinates[3][0], NDI_Sorted_Coordinates[2][1] - NDI_Sorted_Coordinates[3][1], NDI_Sorted_Coordinates[2][2] - NDI_Sorted_Coordinates[3][2] };           // 第三个点与第4个点构成的向量
+	// 然后找一个向量与上述共面的两条直线垂直(Z轴)（叉乘）
+	vector<double> Z_ax{XY_ax_01[1]*XY_ax_02[2] - XY_ax_01[2]*XY_ax_02[1],
+	XY_ax_01[2] * XY_ax_02[0] - XY_ax_01[0] * XY_ax_02[2], XY_ax_01[0] * XY_ax_02[1] - XY_ax_01[1] * XY_ax_02[0] };
+	// 找X轴
+	vector<double> X_ax{XY_ax_01};  
+	// 现在已经找到了X轴与Z轴，然后再利用叉乘得到Y轴
+	// 先单位化
+	double X_S_SUM = sqrt(pow(X_ax[0], 2) + pow(X_ax[1], 2) + pow(X_ax[2], 2));
+	for (int xi = 0; xi < 3; xi++)
+		X_ax[xi] = X_ax[xi] / X_S_SUM;
+	double Z_S_SUM = sqrt(pow(Z_ax[0], 2) + pow(Z_ax[1], 2) + pow(Z_ax[2], 2));
+	for (int zi = 0; zi < 3; zi++)
+		Z_ax[zi] = Z_ax[zi] / Z_S_SUM;
+	// 叉乘得到Y轴坐标
+	vector<double> Y_ax{ X_ax[1] * Z_ax[2] - X_ax[2] * Z_ax[1],
+	X_ax[2] * Z_ax[0] - X_ax[0] * Z_ax[2], X_ax[0] * Z_ax[1] - X_ax[1] * Z_ax[0] };
+	// 单位化
+	double Y_S_SUM = sqrt(pow(Y_ax[0], 2) + pow(Y_ax[1], 2) + pow(Y_ax[2], 2));
+	for (int yi = 0; yi < 3; yi++)
+		Y_ax[yi] = Y_ax[yi] / Y_S_SUM;
+
+	// 构建旋转平移矩阵
+	vector<vector<double>> ToolstoNDI_TR{ X_ax, Y_ax, Z_ax, NDI_Sorted_Coordinates[2] };
+
+	// 测试
+	cout << "    " << ToolstoNDI_TR[0][0] << "    " << ToolstoNDI_TR[0][1] << "    " << ToolstoNDI_TR[0][2] << endl;
+	cout << "    " << ToolstoNDI_TR[1][0] << "    " << ToolstoNDI_TR[1][1] << "    " << ToolstoNDI_TR[1][2] << endl;
+	cout << "    " << ToolstoNDI_TR[2][0] << "    " << ToolstoNDI_TR[2][1] << "    " << ToolstoNDI_TR[2][2] << endl;
+	cout << "    " << ToolstoNDI_TR[3][0] << "    " << ToolstoNDI_TR[3][1] << "    " << ToolstoNDI_TR[3][2] << endl;
+
 	// ******************************************** 求解NDI与Tools之间的RT矩阵 ****************************************
 	// 建立Tools坐标系
 	// 以第三个点为原点，第三个点和第一点组成X轴，与 X 轴垂直的轴设为 Y 轴，根据右手准则构建Z轴
@@ -99,7 +140,8 @@ void CorrespondenceAndBuild(const vector<vector<double>>& NDICoordinates, vector
 	//vector<float> One{ 59.53, 0, 0 };            // 第一点在Tools下的坐标(已知)
 	//vector<float> Two{ 29.76, -3.94, 0.0 };      // 第二点(可以根据几何关系算出)
 
-
+	// 计算错误
+	/*
 	vector<Point3d> pts_3d;
 	vector<Point2d> pts_2d;
 
@@ -128,6 +170,9 @@ void CorrespondenceAndBuild(const vector<vector<double>>& NDICoordinates, vector
 
 	// 验证
 	vector<Point3d> test_pts_3d;
+	*/
+
+
 
 }
 
